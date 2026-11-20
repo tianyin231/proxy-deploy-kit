@@ -22,7 +22,7 @@ Usage: verify-proxy.sh [options]
 The six checks from the deploy README:
   1. sing-box check + static DNS/route audit
   2. Exit IPv4 (https://api.ipify.org)
-  3. DNS leak hint (resolver/exit geo vs expected landing)
+  3. DNS leak hint (encrypted-DNS / detour audit plus optional resolver hints)
   4. IPv6 block (https://ipv6.icanhazip.com)
   5. Gemini first hop without cookies (200 vs 302 sorry/index)
   6. Recent journalctl errors (EOF / connection reset / timeout / flow mismatch)
@@ -267,9 +267,9 @@ else
   fi
   if dns_json="$(curl_base https://edns.ip-api.com/json 2>/dev/null || true)"; then
     echo "    edns.ip-api.com: $dns_json"
-    ok "fetched resolver hint from edns.ip-api.com (confirm city/country is the landing, not the transit)"
+    ok "fetched a resolver hint from edns.ip-api.com (anycast GeoIP is not proof of local DNS)"
   else
-    warn "edns.ip-api.com not reachable; skip resolver-geo hint"
+    warn "edns.ip-api.com not reachable; skip the optional resolver hint"
   fi
 
   head1 "4. IPv6 block ($curl_via)"
@@ -281,13 +281,13 @@ else
   if [[ -n "$v6_out" ]]; then
     echo "    ipv6.icanhazip.com -> $v6_out"
     if [[ "$EXPECT_NO_IPV6" -eq 1 ]]; then
-      bad "IPv6 is reachable ($v6_out); landing exit should be ipv4_only"
+      bad "IPv6 is reachable on this probe ($v6_out). That fails --expect-no-ipv6, but this single URL does not prove other apps cannot use IPv6."
     else
-      warn "IPv6 is reachable ($v6_out). For a WireGuard ipv4_only landing this should be empty. Pass --expect-no-ipv6 to fail."
+      warn "IPv6 is reachable on this probe ($v6_out). For an ipv4_only landing this request should be empty. That does not prove the OS or other apps cannot leak IPv6. Pass --expect-no-ipv6 to fail the script."
     fi
   else
-    echo "    no IPv6 response (curl exit $v6_rc) — expected for ipv4_only landing exits"
-    ok "ipv6.icanhazip.com empty or timed out"
+    echo "    no IPv6 response on this probe (curl exit $v6_rc). That is expected for an ipv4_only landing, but it does not prove end-to-end IPv6 cannot leak."
+    ok "ipv6.icanhazip.com empty or timed out on this probe"
   fi
 
   head1 "5. Gemini first hop, no cookies ($curl_via)"
@@ -307,7 +307,7 @@ else
       ok "Gemini first hop is 200 — this exit is not in a sorry/index loop"
     elif [[ "$status" == "302" || "$status" == "303" || "$status" == "307" || "$status" == "308" ]]; then
       if printf '%s' "$loc_lc" | grep -q 'sorry/index'; then
-        warn "Gemini 302 to google.com/sorry/index — this is the landing IP reputation, not a sing-box misconfig. Unlock testers that do not store cookies will time out; a real browser often still works after 2–3 hops."
+        warn "Gemini 302 to google.com/sorry/index. That is a temporary interstitial for this egress IP, not proof of an account ban or a permanent IP block, and not by itself a sing-box misconfig. Testers that do not store cookies will time out; a real browser often still works after 2-3 hops."
       else
         warn "Gemini redirected (HTTP $status) to ${location:-?} — not a sorry/index loop, inspect manually"
       fi
