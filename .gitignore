@@ -1,0 +1,26 @@
+# Filled-in configs with real credentials — never commit these
+server/config.json
+clients/flclash-strict.yaml
+clients/shadowrocket.conf
+
+# Keys, certificates, env files
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+*.pfx
+*.secret
+.env
+.env.*
+!.env.example
+
+# Local secrets and backups
+secrets/
+*.bak
+*~
+.DS_Store
+
+# Editor / OS
+.idea/
+.vscode/

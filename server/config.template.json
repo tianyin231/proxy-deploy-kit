@@ -1,0 +1,303 @@
+{
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "tls",
+        "tag": "starzone-wg-dns",
+        "server": "1.1.1.1",
+        "detour": "exit-starzone",
+        "tls": {
+          "enabled": true,
+          "server_name": "cloudflare-dns.com"
+        },
+        "server_port": 853
+      },
+      {
+        "type": "https",
+        "tag": "starzone-wg-dns-backup",
+        "server": "9.9.9.9",
+        "detour": "exit-starzone",
+        "tls": {
+          "enabled": true,
+          "server_name": "dns.quad9.net"
+        }
+      },
+      {
+        "type": "https",
+        "tag": "direct-doh",
+        "server": "1.1.1.1",
+        "tls": {
+          "enabled": true,
+          "server_name": "cloudflare-dns.com"
+        }
+      },
+      {
+        "type": "https",
+        "tag": "direct-doh-backup",
+        "server": "9.9.9.9",
+        "tls": {
+          "enabled": true,
+          "server_name": "dns.quad9.net"
+        }
+      }
+    ],
+    "final": "direct-doh",
+    "rules": [
+      {
+        "auth_user": [
+          "starzone"
+        ],
+        "action": "evaluate",
+        "server": "starzone-wg-dns",
+        "timeout": "6s"
+      },
+      {
+        "auth_user": [
+          "starzone"
+        ],
+        "match_response": true,
+        "response_rcode": "NOERROR",
+        "action": "respond"
+      },
+      {
+        "auth_user": [
+          "starzone"
+        ],
+        "match_response": true,
+        "response_rcode": "NXDOMAIN",
+        "action": "respond"
+      },
+      {
+        "auth_user": [
+          "starzone"
+        ],
+        "action": "route",
+        "server": "starzone-wg-dns-backup",
+        "timeout": "4s"
+      },
+      {
+        "auth_user": [
+          "jp-direct"
+        ],
+        "action": "evaluate",
+        "server": "direct-doh",
+        "timeout": "6s"
+      },
+      {
+        "auth_user": [
+          "jp-direct"
+        ],
+        "match_response": true,
+        "response_rcode": "NOERROR",
+        "action": "respond"
+      },
+      {
+        "auth_user": [
+          "jp-direct"
+        ],
+        "match_response": true,
+        "response_rcode": "NXDOMAIN",
+        "action": "respond"
+      },
+      {
+        "auth_user": [
+          "jp-direct"
+        ],
+        "action": "route",
+        "server": "direct-doh-backup",
+        "timeout": "4s"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "jp-vless",
+      "listen": "0.0.0.0",
+      "listen_port": 443,
+      "users": [
+        {
+          "name": "jp-direct",
+          "uuid": "<VLESS_UUID_JP_DIRECT>",
+          "flow": "xtls-rprx-vision"
+        },
+        {
+          "name": "hk-proxy",
+          "uuid": "<VLESS_UUID_HK_PROXY>",
+          "flow": "xtls-rprx-vision"
+        },
+        {
+          "name": "us-proxy",
+          "uuid": "<VLESS_UUID_US_PROXY>",
+          "flow": "xtls-rprx-vision"
+        },
+        {
+          "name": "starzone",
+          "uuid": "<VLESS_UUID_STARZONE>",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "www.cloudflare.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.cloudflare.com",
+            "server_port": 443
+          },
+          "private_key": "<REALITY_PRIVATE_KEY>",
+          "short_id": [
+            "<REALITY_SHORT_ID>"
+          ]
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "jp-hy2",
+      "listen": "0.0.0.0",
+      "listen_port": 443,
+      "users": [
+        {
+          "name": "jp-direct",
+          "password": "<HY2_PASSWORD_JP_DIRECT>"
+        },
+        {
+          "name": "hk-proxy",
+          "password": "<HY2_PASSWORD_HK_PROXY>"
+        },
+        {
+          "name": "us-proxy",
+          "password": "<HY2_PASSWORD_US_PROXY>"
+        },
+        {
+          "name": "starzone",
+          "password": "<HY2_PASSWORD_STARZONE>"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "certificate_path": "/etc/sing-box-jp/tls-cert.pem",
+        "key_path": "/etc/sing-box-jp/tls-key.pem"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "http",
+      "tag": "exit-b",
+      "server": "<HK_UPSTREAM_HOST>",
+      "server_port": "<HK_UPSTREAM_PORT>",
+      "username": "<HK_UPSTREAM_USERNAME>",
+      "password": "<HK_UPSTREAM_PASSWORD>"
+    },
+    {
+      "type": "http",
+      "tag": "exit-a",
+      "server": "<US_UPSTREAM_HOST>",
+      "server_port": "<US_UPSTREAM_PORT>",
+      "username": "<US_UPSTREAM_USERNAME>",
+      "password": "<US_UPSTREAM_PASSWORD>"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": "direct-doh",
+    "rules": [
+      {
+        "network": "udp",
+        "action": "reject"
+      },
+      {
+        "auth_user": [
+          "jp-direct"
+        ],
+        "action": "resolve"
+      },
+      {
+        "inbound": [
+          "exit-starzone"
+        ],
+        "action": "reject"
+      },
+      {
+        "auth_user": [
+          "starzone"
+        ],
+        "action": "resolve",
+        "strategy": "ipv4_only"
+      },
+      {
+        "ip_is_private": true,
+        "action": "reject"
+      },
+      {
+        "auth_user": [
+          "jp-direct"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "auth_user": [
+          "hk-proxy"
+        ],
+        "action": "route",
+        "outbound": "exit-b"
+      },
+      {
+        "auth_user": [
+          "us-proxy"
+        ],
+        "action": "route",
+        "outbound": "exit-a"
+      },
+      {
+        "auth_user": [
+          "starzone"
+        ],
+        "action": "route",
+        "outbound": "exit-starzone"
+      },
+      {
+        "inbound": [
+          "jp-vless",
+          "jp-hy2"
+        ],
+        "action": "reject"
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "type": "wireguard",
+      "tag": "exit-starzone",
+      "system": false,
+      "mtu": 1280,
+      "address": [
+        "<WG_IPV4>/32"
+      ],
+      "private_key": "<WG_PRIVATE_KEY>",
+      "peers": [
+        {
+          "address": "<WG_PEER_IPV4>",
+          "port": "<WG_PEER_PORT>",
+          "public_key": "<WG_PEER_PUBLIC_KEY>",
+          "allowed_ips": [
+            "0.0.0.0/0"
+          ],
+          "persistent_keepalive_interval": 15
+        }
+      ],
+      "domain_resolver": "direct-doh"
+    }
+  ]
+}
