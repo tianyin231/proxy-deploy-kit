@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proxy Deploy Kit topology",
+  "type": "object",
+  "required": [
+    "instance",
+    "relay",
+    "exits"
+  ],
+  "properties": {
+    "instance": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
+      "description": "Short slug used for systemd unit (sing-box-<instance>.service) and /etc/sing-box-<instance>/"
+    },
+    "relay": {
+      "type": "object",
+      "required": [
+        "public_host"
+      ],
+      "properties": {
+        "public_host": {
+          "type": "string"
+        },
+        "listen": {
+          "type": "string",
+          "default": "::"
+        },
+        "listen_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 443
+        },
+        "ssh_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 22
+        },
+        "log_level": {
+          "type": "string",
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "fatal",
+            "panic"
+          ],
+          "default": "warn"
+        },
+        "vless_reality": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "server_name": {
+              "type": "string",
+              "default": "www.cloudflare.com"
+            },
+            "handshake_port": {
+              "type": "integer",
+              "default": 443
+            },
+            "private_key": {
+              "type": "string",
+              "default": "auto"
+            },
+            "public_key": {
+              "type": "string",
+              "default": "auto"
+            },
+            "short_id": {
+              "type": "string",
+              "default": "auto"
+            }
+          }
+        },
+        "hysteria2": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "up_mbps": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 100
+            },
+            "down_mbps": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 200
+            },
+            "cert_san": {
+              "type": "string",
+              "default": "www.bing.com"
+            },
+            "auto_self_signed": {
+              "type": "boolean",
+              "default": true
+            },
+            "cert_path": {
+              "type": "string"
+            },
+            "key_path": {
+              "type": "string"
+            },
+            "cert_pin_sha256": {
+              "type": "string",
+              "default": "auto"
+            }
+          }
+        }
+      }
+    },
+    "exits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "http",
+              "socks",
+              "wireguard",
+              "vless",
+              "shadowsocks"
+            ]
+          },
+          "vless_uuid": {
+            "type": "string",
+            "default": "auto"
+          },
+          "hy2_password": {
+            "type": "string",
+            "default": "auto"
+          },
+          "ip_strategy": {
+            "type": "string",
+            "enum": [
+              "ipv4_only",
+              "prefer_ipv4",
+              "prefer_ipv6",
+              "ipv6_only",
+              "dual"
+            ],
+            "default": "prefer_ipv4"
+          },
+          "dns_detour": {
+            "type": "boolean",
+            "default": false
+          },
+          "allow_udp": {
+            "type": "boolean",
+            "default": false
+          },
+          "server_resolve": {
+            "type": "boolean"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "upstream": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "clients": {
+      "type": "object",
+      "properties": {
+        "mixed_port": {
+          "type": "integer",
+          "default": 7890
+        },
+        "enable_tun": {
+          "type": "boolean",
+          "default": true
+        },
+        "rule_mode": {
+          "type": "string",
+          "enum": [
+            "inline",
+            "ruleset"
+          ],
+          "default": "inline"
+        },
+        "default_group": {
+          "type": "string",
+          "default": "正常代理"
+        },
+        "ai_group": {
+          "type": "string",
+          "default": "AI-Google"
+        },
+        "policy_groups": {
+          "type": "array"
+        },
+        "rule_profile": {
+          "type": "string",
+          "default": "default",
+          "description": "Rule profile name under rules/profiles/ (default or cn-strict), or a directory path"
+        },
+        "include_ai_services": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, attach rules/optional/ai-services.list to the AI group"
+        },
+        "china_direct": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force China direct policy even when rule_profile is not cn-strict"
+        },
+        "extra_rule_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional extra domain lists attached to the AI group"
+        }
+      }
+    }
+  }
+}

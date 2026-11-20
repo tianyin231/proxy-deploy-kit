@@ -1,9 +1,19 @@
-# Filled-in configs with real credentials — never commit these
+# Filled topologies, rendered configs, and credentials. Never commit these.
+topology.yaml
+topology.json
+topology.local.yaml
+topology.local.json
+*.resolved.yaml
+*.resolved.json
+build/
+dist/
 server/config.json
 clients/flclash-strict.yaml
+clients/flclash.yaml
 clients/shadowrocket.conf
+clients/nodes-uri.txt
 
-# Keys, certificates, env files
+# Keys, certificates, and environment secrets
 *.key
 *.pem
 *.crt
@@ -14,13 +24,14 @@ clients/shadowrocket.conf
 .env
 .env.*
 !.env.example
-
-# Local secrets and backups
 secrets/
+
+# Backups, temp files, Python cache, editors
 *.bak
 *~
+__pycache__/
+*.pyc
 .DS_Store
-
-# Editor / OS
 .idea/
 .vscode/
+.tmp-test-*

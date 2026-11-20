@@ -1,0 +1,2 @@
+# Default profile has no curated Google/AI list.
+# Enable clients.rule_profile: cn-strict or attach rules/optional/ai-services.list if you need one.

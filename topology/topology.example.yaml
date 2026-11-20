@@ -1,0 +1,95 @@
+# Universal Multi-Exit Example Topology (Sanitized Reference Only)
+# NOTE FOR AI AGENTS: Do NOT deploy this example directly! Follow AGENTS.md to interview the user first.
+
+instance: relay-main
+
+relay:
+  public_host: "<RELAY_PUBLIC_IP_OR_DOMAIN>"
+  listen: "::"
+  listen_port: 443
+  ssh_port: 22
+  log_level: warn
+  vless_reality:
+    enabled: true
+    server_name: www.cloudflare.com
+    handshake_port: 443
+    private_key: auto
+    public_key: auto
+    short_id: auto
+  hysteria2:
+    enabled: true
+    up_mbps: 100
+    down_mbps: 200
+    cert_san: www.bing.com
+    auto_self_signed: true
+    cert_pin_sha256: auto
+
+exits:
+  - id: relay-direct
+    label: "中转本机直出"
+    type: direct
+    ip_strategy: prefer_ipv4
+    dns_detour: false
+    allow_udp: false
+    groups: ["正常代理"]
+
+  - id: asia-http
+    label: "亚太专线转发"
+    type: http
+    ip_strategy: prefer_ipv4
+    dns_detour: false
+    allow_udp: false
+    server_resolve: false
+    groups: ["正常代理", "AI-Google"]
+    upstream:
+      host: "<UPSTREAM_HTTP_HOST>"
+      port: 31280
+      username: "<UPSTREAM_HTTP_USER>"
+      password: "<UPSTREAM_HTTP_PASS>"
+      tls: false
+
+  - id: us-socks
+    label: "美洲常规落地"
+    type: socks
+    ip_strategy: prefer_ipv4
+    dns_detour: false
+    allow_udp: true
+    server_resolve: false
+    groups: ["正常代理", "AI-Google"]
+    upstream:
+      host: "<UPSTREAM_SOCKS_HOST>"
+      port: 10808
+      username: "<UPSTREAM_SOCKS_USER>"
+      password: "<UPSTREAM_SOCKS_PASS>"
+
+  - id: residential-wg
+    label: "原生住宅隧道"
+    type: wireguard
+    ip_strategy: ipv4_only
+    dns_detour: true
+    allow_udp: false
+    groups: ["正常代理", "AI-Google"]
+    upstream:
+      local_ipv4: "10.66.66.2/32"
+      private_key: "<WG_CLIENT_PRIVATE_KEY>"
+      peer_host: "<WG_ENDPOINT_IPV4>"
+      peer_port: 51820
+      peer_public_key: "<WG_SERVER_PUBLIC_KEY>"
+      mtu: 1280
+      keepalive: 15
+
+clients:
+  mixed_port: 7890
+  enable_tun: true
+  rule_mode: inline
+  # default: generic routing. Use cn-strict only if you want the China allowlist.
+  rule_profile: default
+  default_group: "正常代理"
+  ai_group: "AI-Google"
+  policy_groups:
+    - name: "正常代理"
+      type: select
+      include_direct: true
+    - name: "AI-Google"
+      type: select
+      include_direct: false

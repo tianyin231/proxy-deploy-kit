@@ -1,0 +1,33 @@
+# Minimal Single-Server Direct Exit Example (Sanitized Reference Only)
+# Suitable for a standalone VPS acting as both entry and exit without chained upstreams.
+
+instance: edge-solo
+
+relay:
+  public_host: "<VPS_PUBLIC_IP>"
+  listen_port: 443
+  ssh_port: 22
+  vless_reality:
+    enabled: true
+    server_name: www.cloudflare.com
+  hysteria2:
+    enabled: true
+    up_mbps: 100
+    down_mbps: 200
+    auto_self_signed: true
+
+exits:
+  - id: main-direct
+    label: "主力直出节点"
+    type: direct
+    ip_strategy: prefer_ipv4
+    allow_udp: true
+    groups: ["正常代理", "AI-Google"]
+
+clients:
+  mixed_port: 7890
+  enable_tun: true
+  rule_mode: inline
+  rule_profile: default
+  default_group: "正常代理"
+  ai_group: "AI-Google"

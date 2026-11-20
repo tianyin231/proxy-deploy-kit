@@ -1,0 +1,3 @@
+# Generic default direct domains (no country-specific allowlist).
+DOMAIN-SUFFIX,lan
+DOMAIN-SUFFIX,local

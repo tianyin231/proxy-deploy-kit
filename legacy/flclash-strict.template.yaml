@@ -50,11 +50,11 @@ dns:
     "+.local": system
   fallback: []
 proxies:
-- name: 洛杉矶｜VLESS
+- name: 出口A｜VLESS
   type: vless
   server: <TRANSIT_SERVER_IP>
   port: 443
-  uuid: <VLESS_UUID_STARZONE>
+  uuid: <VLESS_UUID_EXIT_A>
   network: tcp
   udp: false
   tls: true
@@ -64,20 +64,20 @@ proxies:
   reality-opts:
     public-key: <REALITY_PUBLIC_KEY>
     short-id: <REALITY_SHORT_ID>
-- name: 洛杉矶｜HY2
+- name: 出口A｜HY2
   type: hysteria2
   server: <TRANSIT_SERVER_IP>
   port: 443
-  password: <HY2_PASSWORD_STARZONE>
+  password: <HY2_PASSWORD_EXIT_A>
   fingerprint: <HY2_CERT_PIN_SHA256>
   sni: <HY2_CERT_SAN>
   skip-cert-verify: false
   udp: false
-- name: 东京｜VLESS
+- name: 出口B｜VLESS
   type: vless
   server: <TRANSIT_SERVER_IP>
   port: 443
-  uuid: <VLESS_UUID_JP_DIRECT>
+  uuid: <VLESS_UUID_EXIT_B>
   network: tcp
   udp: false
   tls: true
@@ -87,20 +87,20 @@ proxies:
   reality-opts:
     public-key: <REALITY_PUBLIC_KEY>
     short-id: <REALITY_SHORT_ID>
-- name: 东京｜HY2
+- name: 出口B｜HY2
   type: hysteria2
   server: <TRANSIT_SERVER_IP>
   port: 443
-  password: <HY2_PASSWORD_JP_DIRECT>
+  password: <HY2_PASSWORD_EXIT_B>
   fingerprint: <HY2_CERT_PIN_SHA256>
   sni: <HY2_CERT_SAN>
   skip-cert-verify: false
   udp: false
-- name: 香港｜VLESS
+- name: 出口C｜VLESS
   type: vless
   server: <TRANSIT_SERVER_IP>
   port: 443
-  uuid: <VLESS_UUID_HK_PROXY>
+  uuid: <VLESS_UUID_EXIT_C>
   network: tcp
   udp: false
   tls: true
@@ -110,20 +110,20 @@ proxies:
   reality-opts:
     public-key: <REALITY_PUBLIC_KEY>
     short-id: <REALITY_SHORT_ID>
-- name: 香港｜HY2
+- name: 出口C｜HY2
   type: hysteria2
   server: <TRANSIT_SERVER_IP>
   port: 443
-  password: <HY2_PASSWORD_HK_PROXY>
+  password: <HY2_PASSWORD_EXIT_C>
   fingerprint: <HY2_CERT_PIN_SHA256>
   sni: <HY2_CERT_SAN>
   skip-cert-verify: false
   udp: false
-- name: 阿灵顿｜VLESS
+- name: 出口D｜VLESS
   type: vless
   server: <TRANSIT_SERVER_IP>
   port: 443
-  uuid: <VLESS_UUID_US_PROXY>
+  uuid: <VLESS_UUID_EXIT_D>
   network: tcp
   udp: false
   tls: true
@@ -133,11 +133,11 @@ proxies:
   reality-opts:
     public-key: <REALITY_PUBLIC_KEY>
     short-id: <REALITY_SHORT_ID>
-- name: 阿灵顿｜HY2
+- name: 出口D｜HY2
   type: hysteria2
   server: <TRANSIT_SERVER_IP>
   port: 443
-  password: <HY2_PASSWORD_US_PROXY>
+  password: <HY2_PASSWORD_EXIT_D>
   fingerprint: <HY2_CERT_PIN_SHA256>
   sni: <HY2_CERT_SAN>
   skip-cert-verify: false
@@ -146,26 +146,26 @@ proxy-groups:
 - name: 正常代理
   type: select
   proxies:
-  - 东京｜VLESS
-  - 东京｜HY2
-  - 香港｜VLESS
-  - 香港｜HY2
-  - 洛杉矶｜VLESS
-  - 洛杉矶｜HY2
-  - 阿灵顿｜VLESS
-  - 阿灵顿｜HY2
+  - 出口B｜VLESS
+  - 出口B｜HY2
+  - 出口C｜VLESS
+  - 出口C｜HY2
+  - 出口A｜VLESS
+  - 出口A｜HY2
+  - 出口D｜VLESS
+  - 出口D｜HY2
   - DIRECT
 - name: Google
   type: select
   proxies:
-  - 洛杉矶｜VLESS
-  - 洛杉矶｜HY2
-  - 阿灵顿｜VLESS
-  - 阿灵顿｜HY2
-  - 东京｜VLESS
-  - 东京｜HY2
-  - 香港｜VLESS
-  - 香港｜HY2
+  - 出口A｜VLESS
+  - 出口A｜HY2
+  - 出口D｜VLESS
+  - 出口D｜HY2
+  - 出口B｜VLESS
+  - 出口B｜HY2
+  - 出口C｜VLESS
+  - 出口C｜HY2
 rule-providers:
   google-extra:
     type: inline

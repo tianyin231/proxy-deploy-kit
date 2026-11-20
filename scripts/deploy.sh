@@ -18,6 +18,9 @@ this kit's config and systemd unit. Default is dry-run (no system changes).
   --config PATH          Filled sing-box JSON (required). Unfilled
                          <PLACEHOLDER> values are rejected. A file that
                          only parses as JSON is not yet a usable config.
+  --instance NAME        Instance slug (default: relay). Sets unit
+                         sing-box-NAME and /etc/sing-box-NAME/ unless
+                         --unit-name or --config-dest is given
   --apply                Write files, install the binary, and start the unit
   --version VER          Official sing-box version (default: ${DEFAULT_VERSION})
   --allow-prerelease     Allow a pre-release tag
@@ -25,10 +28,10 @@ this kit's config and systemd unit. Default is dry-run (no system changes).
                          when this is not /, host systemd/UFW are not touched
   --bin-dir DIR          Binary directory (default: DEST_ROOT/usr/local/bin)
   --config-dest PATH     Installed config path
-                         (default: DEST_ROOT/etc/sing-box-jp/config.json)
+                         (default: DEST_ROOT/etc/sing-box-<instance>/config.json)
   --unit-name NAME       systemd unit name without .service
-                         (default: sing-box-jp)
-  --unit-src PATH        Unit template (default: server/sing-box-jp.service.template)
+                         (default: sing-box-<instance>)
+  --unit-src PATH        Unit template (default: server/sing-box.service.template)
   --backup-dir DIR       Backup directory (default: DEST_ROOT/var/backups/proxy)
   --download-dir DIR     Temporary download dir (created with mktemp by default)
   --skip-download        Do not download; use --sing-box-bin or PATH
@@ -40,13 +43,14 @@ this kit's config and systemd unit. Default is dry-run (no system changes).
   --ssh-port PORT        Passed through to harden-ubuntu.sh
   --skip-os-check        Do not require Ubuntu/Debian
   --skip-port-check      Do not inspect host sockets for listen-port conflicts
+  --force-port-check     Inspect sockets even when --dest-root is not /
   --force-systemd        Call systemctl even when dest-root is not / (tests)
   --allow-nonroot        Allow --apply without root (tests with --dest-root)
   -h, --help             Show this help
 
-This script only manages ${DEFAULT_UNIT:-sing-box-jp} plus the binary path
-and config path above. It will not overwrite a different systemd unit, and
-it will refuse to bind ports already used by an unrelated process.
+This script only manages the unit and paths for the chosen --instance.
+It will not overwrite a different systemd unit, and it will refuse to bind
+ports already used by an unrelated process.
 USAGE
 }
 
@@ -55,13 +59,14 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 APPLY=0
 CONFIG_SRC=""
+INSTANCE="relay"
 VERSION="$DEFAULT_VERSION"
 ALLOW_PRERELEASE=0
 DEST_ROOT="/"
 BIN_DIR=""
 CONFIG_DEST=""
-UNIT_NAME="sing-box-jp"
-UNIT_SRC="$REPO_ROOT/server/sing-box-jp.service.template"
+UNIT_NAME=""
+UNIT_SRC="$REPO_ROOT/server/sing-box.service.template"
 BACKUP_DIR=""
 DOWNLOAD_DIR=""
 SKIP_DOWNLOAD=0
@@ -71,6 +76,7 @@ HARDEN=0
 SSH_PORT=""
 SKIP_OS_CHECK=0
 SKIP_PORT_CHECK=0
+FORCE_PORT_CHECK=0
 FORCE_SYSTEMD=0
 ALLOW_NONROOT=0
 
@@ -84,6 +90,9 @@ while [[ $# -gt 0 ]]; do
     --config)
       [[ $# -ge 2 ]] || die "--config requires a path" 2
       CONFIG_SRC="$2"; shift 2 ;;
+    --instance)
+      [[ $# -ge 2 ]] || die "--instance requires a name" 2
+      INSTANCE="$2"; shift 2 ;;
     --apply) APPLY=1; shift ;;
     --version)
       [[ $# -ge 2 ]] || die "--version requires a value" 2
@@ -123,6 +132,7 @@ while [[ $# -gt 0 ]]; do
       SSH_PORT="$2"; shift 2 ;;
     --skip-os-check) SKIP_OS_CHECK=1; shift ;;
     --skip-port-check) SKIP_PORT_CHECK=1; shift ;;
+    --force-port-check) FORCE_PORT_CHECK=1; shift ;;
     --force-systemd) FORCE_SYSTEMD=1; shift ;;
     --allow-nonroot) ALLOW_NONROOT=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -139,12 +149,28 @@ fi
 # Normalize paths. DEST_ROOT=/ means a real host install.
 DEST_ROOT="$(realpath -m "$DEST_ROOT")"
 [[ "$DEST_ROOT" == "/" ]] || DEST_ROOT="${DEST_ROOT%/}"
+if ! [[ "$INSTANCE" =~ ^[a-z0-9][a-z0-9-]{0,30}$ ]]; then
+  die "invalid --instance '$INSTANCE': use a lowercase slug (letters, digits, hyphens)"
+fi
+UNIT_NAME="${UNIT_NAME:-sing-box-${INSTANCE}}"
+UNIT_NAME="${UNIT_NAME%.service}"
 [[ -n "$BIN_DIR" ]] || BIN_DIR="$DEST_ROOT/usr/local/bin"
-[[ -n "$CONFIG_DEST" ]] || CONFIG_DEST="$DEST_ROOT/etc/sing-box-jp/config.json"
+[[ -n "$CONFIG_DEST" ]] || CONFIG_DEST="$DEST_ROOT/etc/sing-box-${INSTANCE}/config.json"
 CONFIG_DIR="$(dirname "$CONFIG_DEST")"
 UNIT_DEST="$DEST_ROOT/etc/systemd/system/${UNIT_NAME}.service"
 BIN_DEST="$BIN_DIR/sing-box"
 [[ -n "$BACKUP_DIR" ]] || BACKUP_DIR="$DEST_ROOT/var/backups/proxy"
+
+PREFIX=""
+if [[ "$DEST_ROOT" != "/" ]]; then PREFIX="$DEST_ROOT"; fi
+RUNTIME_CONFIG_PATH="${CONFIG_DEST#"$PREFIX"}"
+if [[ -z "$RUNTIME_CONFIG_PATH" || "$RUNTIME_CONFIG_PATH" == "$CONFIG_DEST" && "$DEST_ROOT" != "/" ]]; then
+  RUNTIME_CONFIG_PATH="/etc/sing-box-${INSTANCE}/config.json"
+fi
+[[ "$RUNTIME_CONFIG_PATH" == /* ]] || RUNTIME_CONFIG_PATH="/$RUNTIME_CONFIG_PATH"
+RUNTIME_BIN_PATH="${BIN_DEST#"$PREFIX"}"
+if [[ -z "$RUNTIME_BIN_PATH" ]]; then RUNTIME_BIN_PATH="/usr/local/bin/sing-box"; fi
+[[ "$RUNTIME_BIN_PATH" == /* ]] || RUNTIME_BIN_PATH="/$RUNTIME_BIN_PATH"
 
 VERSION="${VERSION#v}"
 TAG="v$VERSION"
@@ -181,6 +207,8 @@ DID_START=0
 HAD_CONFIG=0
 HAD_UNIT=0
 HAD_BINARY=0
+WROTE_CERTS=0
+HAD_CERTS=0
 ORIG_ACTIVE="missing"
 ORIG_ENABLED="missing"
 ROLLBACK_NOTES=()
@@ -221,6 +249,30 @@ rollback() {
     fi
   else
     record "config was not replaced; no config rollback needed"
+  fi
+
+  if [[ "$WROTE_CERTS" -eq 1 ]]; then
+    if [[ -d "$BACKUP_PATH/certs" ]]; then
+      local cert
+      for cert in "$BACKUP_PATH/certs"/*; do
+        [[ -f "$cert" ]] || continue
+        if cp -a -- "$cert" "$CONFIG_DIR/$(basename "$cert")"; then
+          record "restored $CONFIG_DIR/$(basename "$cert") from backup"
+        else
+          record "FAILED to restore $CONFIG_DIR/$(basename "$cert")"
+          ok=0
+        fi
+      done
+    fi
+    if [[ -f "$BACKUP_PATH/certs-created.txt" ]]; then
+      local created
+      while IFS= read -r created; do
+        [[ -n "$created" ]] || continue
+        if rm -f -- "$created"; then
+          record "removed new cert $created (no previous copy)"
+        fi
+      done < "$BACKUP_PATH/certs-created.txt"
+    fi
   fi
 
   if [[ "$WROTE_UNIT" -eq 1 ]]; then
@@ -467,15 +519,17 @@ RESOLVED_DIGEST=""
 RESOLVED_SIZE=""
 
 if [[ "$SKIP_DOWNLOAD" -eq 0 ]]; then
-  meta="$(fetch_release_meta)" || true
-  if printf '%s\n' "$meta" | grep -q '^META_ERROR:'; then
-    die "could not resolve official release $(printf '%s\n' "$meta" | sed -n 's/^META_ERROR://p')"
-  fi
-  RESOLVED_URL="$(printf '%s\n' "$meta" | sed -n 's/^URL=//p')"
-  RESOLVED_DIGEST="$(printf '%s\n' "$meta" | sed -n 's/^DIGEST=//p')"
-  RESOLVED_SIZE="$(printf '%s\n' "$meta" | sed -n 's/^SIZE=//p')"
   if [[ -n "$EXPECTED_SHA256" ]]; then
     RESOLVED_DIGEST="sha256:${EXPECTED_SHA256#sha256:}"
+    log "using caller-supplied sha256 digest"
+  else
+    meta="$(fetch_release_meta)" || true
+    if printf '%s\n' "$meta" | grep -q '^META_ERROR:'; then
+      die "could not resolve official release $(printf '%s\n' "$meta" | sed -n 's/^META_ERROR://p')"
+    fi
+    RESOLVED_URL="$(printf '%s\n' "$meta" | sed -n 's/^URL=//p')"
+    RESOLVED_DIGEST="$(printf '%s\n' "$meta" | sed -n 's/^DIGEST=//p')"
+    RESOLVED_SIZE="$(printf '%s\n' "$meta" | sed -n 's/^SIZE=//p')"
   fi
   if [[ -z "$RESOLVED_URL" ]]; then
     die "official download URL was empty"
@@ -520,7 +574,7 @@ for item in ports:
 PY
 )"
 
-if [[ "$SKIP_PORT_CHECK" -eq 0 && "$DEST_ROOT" == "/" ]]; then
+if [[ "$SKIP_PORT_CHECK" -eq 0 && ( "$DEST_ROOT" == "/" || "$FORCE_PORT_CHECK" -eq 1 ) ]]; then
   if command -v ss >/dev/null 2>&1; then
     while IFS= read -r spec; do
       [[ -n "$spec" ]] || continue
@@ -561,7 +615,7 @@ if [[ "$SKIP_PORT_CHECK" -eq 0 && "$DEST_ROOT" == "/" ]]; then
     warn "ss not found; skipping live port checks"
   fi
 else
-  planned "skip live host port checks (dest-root is not / or --skip-port-check)"
+  planned "skip live host port checks (dest-root is not / and --force-port-check was not set, or --skip-port-check)"
 fi
 
 # Do not touch a different unit that happens to also be named sing-box.
@@ -572,8 +626,9 @@ if [[ -e "$DEST_ROOT/etc/systemd/system/sing-box.service" || -e "$DEST_ROOT/lib/
 fi
 
 if [[ -e "$UNIT_DEST" ]]; then
-  if grep -q 'ExecStart=/usr/local/bin/sing-box run -c /etc/sing-box-jp/config.json' "$UNIT_DEST" \
-     || grep -q "ExecStart=.*/sing-box run -c .*sing-box-jp/config.json" "$UNIT_DEST"; then
+  if grep -Eq "ExecStart=.*/sing-box[[:space:]]+run[[:space:]]+-c[[:space:]].*sing-box-${INSTANCE}/config\.json" "$UNIT_DEST" \
+     || grep -Fq "ExecStart=${RUNTIME_BIN_PATH} run -c ${RUNTIME_CONFIG_PATH}" "$UNIT_DEST" \
+     || grep -Eq "ExecStart=.*/sing-box[[:space:]]+run[[:space:]]+-c[[:space:]].*${UNIT_NAME#sing-box-}/config\.json" "$UNIT_DEST"; then
     log "existing unit $UNIT_DEST looks like this kit; it will be backed up and replaced"
   else
     err "existing unit $UNIT_DEST does not look like this kit's ExecStart"
@@ -605,7 +660,7 @@ fi
 WORK_DIR="$(mktemp -d -t proxy-deploy.XXXXXX)"
 chmod 700 "$WORK_DIR"
 BACKUP_STAMP="$(date +%Y%m%d-%H%M%S)"
-BACKUP_PATH="$BACKUP_DIR/sing-box-jp-${BACKUP_STAMP}"
+BACKUP_PATH="$BACKUP_DIR/${UNIT_NAME}-${BACKUP_STAMP}"
 mkdir -p "$BACKUP_PATH" "$CONFIG_DIR" "$BIN_DIR" "$(dirname "$UNIT_DEST")" "$BACKUP_DIR"
 chmod 700 "$CONFIG_DIR" "$BACKUP_PATH"
 
@@ -672,17 +727,39 @@ umask 077
 # install(1) copies bytes; we do not echo or cat the file.
 install -m 0600 "$CONFIG_SRC" "$stage_cfg"
 stage_unit="$WORK_DIR/${UNIT_NAME}.service"
-# Rewrite ExecStart if dest-root tests use a different prefix? For real
-# installs the template already points at /usr/local/bin and /etc/sing-box-jp.
-# Keep the template faithful for dest-root=/ ; for dest-root tests the unit
-# is still the production template (documented).
-install -m 0644 "$UNIT_SRC" "$stage_unit"
+sed \
+  -e "s|__UNIT_NAME__|${UNIT_NAME}|g" \
+  -e "s|__BIN_DEST__|${RUNTIME_BIN_PATH}|g" \
+  -e "s|__CONFIG_DEST__|${RUNTIME_CONFIG_PATH}|g" \
+  "$UNIT_SRC" > "$stage_unit"
+chmod 0644 "$stage_unit"
 
 install -m 0600 "$stage_cfg" "$CONFIG_DEST.tmp.$$"
 mv -f -- "$CONFIG_DEST.tmp.$$" "$CONFIG_DEST"
 chmod 600 "$CONFIG_DEST"
 WROTE_CONFIG=1
 log "installed config $CONFIG_DEST (0600)"
+
+# Copy sibling TLS files from the rendered server dir (hy2.crt / hy2.key, etc.).
+SRC_CFG_DIR="$(dirname "$CONFIG_SRC")"
+mkdir -p "$BACKUP_PATH/certs"
+: > "$BACKUP_PATH/certs-created.txt"
+for ext_f in "$SRC_CFG_DIR"/*.crt "$SRC_CFG_DIR"/*.key "$SRC_CFG_DIR"/*.pem; do
+  [[ -f "$ext_f" ]] || continue
+  dest_cert="$CONFIG_DIR/$(basename "$ext_f")"
+  if [[ "$(realpath -m "$ext_f")" == "$(realpath -m "$dest_cert")" ]]; then
+    continue
+  fi
+  if [[ -f "$dest_cert" ]]; then
+    cp -a -- "$dest_cert" "$BACKUP_PATH/certs/$(basename "$ext_f")"
+    HAD_CERTS=1
+  else
+    printf '%s\n' "$dest_cert" >> "$BACKUP_PATH/certs-created.txt"
+  fi
+  install -m 0600 "$ext_f" "$dest_cert"
+  WROTE_CERTS=1
+  log "installed $(basename "$ext_f") next to the config (0600)"
+done
 
 install -m 0644 "$stage_unit" "$UNIT_DEST.tmp.$$"
 mv -f -- "$UNIT_DEST.tmp.$$" "$UNIT_DEST"
@@ -720,7 +797,7 @@ NEED_ROLLBACK=0
 if [[ "$HARDEN" -eq 1 ]]; then
   harden_args=()
   [[ "$APPLY" -eq 1 ]] && harden_args+=(--apply)
-  harden_args+=(--config "$CONFIG_DEST")
+  harden_args+=(--instance "$INSTANCE" --config "$CONFIG_DEST")
   [[ -e "${CONFIG_DIR}/tls-key.pem" ]] && harden_args+=(--config "${CONFIG_DIR}/tls-key.pem")
   [[ -e "${CONFIG_DIR}/tls-cert.pem" ]] && harden_args+=(--config "${CONFIG_DIR}/tls-cert.pem")
   harden_args+=(--backup-dir "$BACKUP_DIR")

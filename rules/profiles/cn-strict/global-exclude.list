@@ -1,0 +1,28 @@
+# Cross-border / Global CDN domains that must NEVER be matched as CN DIRECT
+# Any entry here is automatically stripped when compiling cn-direct.list
+apple.com
+icloud.com
+cdn-apple.com
+mzstatic.com
+microsoft.com
+live.com
+office.com
+office365.com
+bing.com
+msn.com
+linkedin.com
+github.com
+githubusercontent.com
+githubassets.com
+steamcontent.com
+steampowered.com
+steamcommunity.com
+cloudflare.com
+cloudflare-dns.com
+akamaihd.net
+fastly.net
+amazonaws.com
+paypal.com
+stripe.com
+mozilla.org
+firefox.com
